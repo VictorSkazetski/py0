@@ -1,3 +1,4 @@
+import requests
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, \
@@ -10,13 +11,17 @@ FILENAME = "product.csv"
 
 
 class Product:
-    def __init__(self, name, price, a_link, ):
+    def __init__(self, name, price, a_link, weight_price):
         self.__name = name
         self.__price = price
         self.__a_link = a_link
+        self.__weight_price = weight_price
 
     def set_price(self, price):
         self.__price = price
+
+    def set_weight_price(self, weight_price):
+        self.__weight_price = weight_price
 
     def get_name(self):
         return self.__name
@@ -26,6 +31,9 @@ class Product:
 
     def get_a_link(self):
         return self.__a_link
+
+    def get_weight_price(self):
+        return self.__weight_price
 
 
 def get_full_html():
@@ -63,10 +71,19 @@ def parce_html():
     soup = BeautifulSoup(html, 'html.parser')
     a = soup.findAll('a', {'class': 'product-name'})
     for item_a in a:
-        product_list.append(Product(item_a.attrs['title'], "", item_a.attrs['href']))
+        product_list.append(Product(item_a.attrs['title'], "", item_a.attrs['href'], ""))
     span = soup.findAll('span', {'class': 'price product-price'})
     for i in range(len(product_list)):
         product_list[i].set_price(span[i].text)
+    for i in range(len(product_list)):
+        weight_price = ""
+        resp = requests.get(product_list[i].get_a_link())
+        soup = BeautifulSoup(resp.content, 'html.parser')
+        spanWeight = soup.findAll('span', {'class': 'radio_label'})
+        spanPrice = soup.findAll('span', {'class': 'price_comb'})
+        for j in range(len(spanWeight)):
+            weight_price += f"{spanWeight[j].text}/{spanPrice[j].text} && "
+        product_list[i].set_weight_price(weight_price)
     return product_list
 
 
@@ -74,11 +91,12 @@ def ctreate_csv():
     product_parce = parce_html()
     products = []
     with open(FILENAME, "w", encoding="utf-8") as file:
-        columns = ["product_name", "price", 'link']
+        columns = ["product_name", "price", 'link', 'weight/price']
         writer = csv.DictWriter(file, fieldnames=columns)
         for item in product_parce:
             products.append({"product_name": f"{item.get_name()}", "price": f"{item.get_price()}",
-                       "link": f"{item.get_a_link()}"})
+                       "link": f"{item.get_a_link()}", "weight/price": f"{item.get_weight_price()}"})
+        writer.writeheader()
         writer.writerows(products)
 
 
